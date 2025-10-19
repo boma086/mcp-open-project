@@ -95,51 +95,39 @@ def main():
         # Create MCP server
         mcp = asyncio.run(create_mcp_server())
 
-        # Setup Starlette app with CORS for cross-origin requests
-        # Try different app creation methods
-        try:
-            # First try the standard method
-            app = mcp.streamable_http_app()
-            logger.info("Using streamable_http_app()")
-        except Exception as e:
-            logger.warning(f"streamable_http_app() failed: {e}")
-            try:
-                # Fallback to create_app() if available
-                app = mcp.create_app()
-                logger.info("Using create_app() fallback")
-            except Exception as e2:
-                logger.error(f"Both app creation methods failed: {e2}")
-                raise
+        # Get Starlette app from FastMCP
+        app = mcp.streamable_http_app()
+        logger.info("FastMCP streamable_http_app() created successfully")
 
-        # Add CORS middleware with specific MCP headers
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
-            allow_headers=["*"],
-            expose_headers=["mcp-session-id", "mcp-protocol-version", "content-type"],
-            max_age=86400,
-        )
-
-        # Add custom routes AFTER middleware
+        # ⚠️ IMPORTANT: Add custom routes BEFORE CORS middleware
         @app.route("/health")
         async def health_check(request):
             return JSONResponse({
                 "status": "healthy",
                 "service": "openproject-mcp-server",
-                "version": "0.0.1",
-                "timestamp": str(asyncio.get_event_loop().time())
+                "version": "0.0.1"
             })
 
-        # Add root endpoint for debugging
         @app.route("/")
         async def root(request):
             return JSONResponse({
                 "service": "OpenProject MCP Server",
                 "status": "running",
-                "mcp_ready": True
+                "mcp_endpoint": "/mcp",
+                "version": "0.0.1"
             })
+
+        # Add CORS middleware AFTER custom routes
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_headers=["*"],
+            expose_headers=["mcp-session-id", "mcp-protocol-version"],
+            max_age=86400,
+        )
+        logger.info("CORS middleware configured")
 
         logger.info(f"Starting HTTP server on port {port}")
 
@@ -151,7 +139,7 @@ def main():
 
         logger.info(f"Starting HTTP server on port {port}")
 
-        # Run the server with configured settings
+        # Run the server with optimized settings for Smithery
         uvicorn.run(
             app,
             host="0.0.0.0",
@@ -159,28 +147,7 @@ def main():
             log_level="info",
             access_log=True,
             timeout_keep_alive=65,
-            timeout_graceful_shutdown=30,
-            # Add these for debugging
-            log_config={
-                "version": 1,
-                "disable_existing_loggers": False,
-                "formatters": {
-                    "default": {
-                        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-                    },
-                },
-                "handlers": {
-                    "default": {
-                        "formatter": "default",
-                        "class": "logging.StreamHandler",
-                        "stream": "ext://sys.stdout",
-                    },
-                },
-                "root": {
-                    "level": "INFO",
-                    "handlers": ["default"],
-                },
-            }
+            timeout_graceful_shutdown=30
         )
 
     except Exception as e:
