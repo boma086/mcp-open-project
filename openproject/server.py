@@ -5,6 +5,7 @@ import asyncio
 import os
 import yaml
 import logging
+import time
 from pathlib import Path
 import uvicorn
 from starlette.middleware.cors import CORSMiddleware
@@ -50,7 +51,7 @@ async def create_mcp_server():
     logger.info("Creating MCP server...")
 
     try:
-        # Enable experimental OpenAPI parser
+        # Enable experimental OpenAPI parser (required for OpenProject's schema)
         os.environ["FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER"] = "true"
         logger.info("Enabled experimental OpenAPI parser")
 
@@ -58,22 +59,41 @@ async def create_mcp_server():
         config = OpenProjectSettings()
         logger.info(f"Configuration loaded - Base URL: {config.base_url}")
 
-        # Test client creation (but don't connect yet)
+        # Create HTTP client for OpenProject API
+        logger.info("Creating HTTP client for OpenProject API...")
         client = config.get_client()
         logger.info("HTTP client created successfully")
 
-        # Temporarily skip OpenAPI spec loading due to validation errors
-        # Create a simple MCP server for testing
-        logger.info("Creating basic FastMCP server for testing...")
-        mcp_server = FastMCP(name="OpenProject MCP Server")
+        # Load OpenAPI specification
+        logger.info("Loading OpenAPI specification...")
+        openapi_spec = load_openapi_spec()
 
-        # Add a simple test tool
-        @mcp_server.tool()
-        def get_status() -> str:
-            """Get the current status of the OpenProject MCP server"""
-            return "OpenProject MCP Server is running successfully"
+        # Create MCP server from OpenAPI spec with route exclusions
+        logger.info("Creating FastMCP server from OpenAPI specification...")
 
-        logger.info("Basic MCP server created successfully")
+        # Try using the new experimental OpenAPI parser
+        try:
+            from fastmcp.server.openapi_new import FastMCPOpenAPI
+            logger.info("Using new experimental OpenAPI parser module")
+
+            mcp_server = FastMCPOpenAPI(
+                openapi_spec=openapi_spec,
+                client=client,
+                name="OpenProject MCP Server"
+            )
+        except ImportError as e:
+            logger.warning(f"New parser not available: {e}")
+            logger.warning("Falling back to basic MCP server")
+
+            # Fallback to basic server
+            mcp_server = FastMCP(name="OpenProject MCP Server")
+
+            @mcp_server.tool()
+            def get_status() -> str:
+                """Get the current status of the OpenProject MCP server"""
+                return "OpenProject MCP Server is running (basic mode due to OpenAPI validation errors)"
+
+        logger.info("FastMCP server with OpenProject tools created successfully")
         return mcp_server
 
     except Exception as e:
@@ -101,6 +121,22 @@ def main():
         # Get Starlette app from FastMCP
         app = mcp.streamable_http_app()
         logger.info("FastMCP streamable_http_app() created successfully")
+
+        # Add request logging middleware
+        @app.middleware("http")
+        async def log_requests(request, call_next):
+            logger.info(f"🔗 Incoming request: {request.method} {request.url}")
+            start_time = time.time()
+
+            try:
+                response = await call_next(request)
+                duration = time.time() - start_time
+                logger.info(f"✅ Request completed: {response.status_code} in {duration:.2f}s")
+                return response
+            except Exception as e:
+                duration = time.time() - start_time
+                logger.error(f"❌ Request failed in {duration:.2f}s: {e}")
+                raise
 
         # ⚠️ IMPORTANT: Add custom routes BEFORE CORS middleware
         @app.route("/health")
