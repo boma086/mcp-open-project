@@ -96,20 +96,33 @@ def main():
         mcp = asyncio.run(create_mcp_server())
 
         # Setup Starlette app with CORS for cross-origin requests
-        app = mcp.streamable_http_app()
+        # Try different app creation methods
+        try:
+            # First try the standard method
+            app = mcp.streamable_http_app()
+            logger.info("Using streamable_http_app()")
+        except Exception as e:
+            logger.warning(f"streamable_http_app() failed: {e}")
+            try:
+                # Fallback to create_app() if available
+                app = mcp.create_app()
+                logger.info("Using create_app() fallback")
+            except Exception as e2:
+                logger.error(f"Both app creation methods failed: {e2}")
+                raise
 
-        # Add CORS middleware for browser based clients
+        # Add CORS middleware with specific MCP headers
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
             allow_credentials=True,
-            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
             allow_headers=["*"],
-            expose_headers=["mcp-session-id", "mcp-protocol-version"],
+            expose_headers=["mcp-session-id", "mcp-protocol-version", "content-type"],
             max_age=86400,
         )
 
-        # Add health check endpoint
+        # Add custom routes AFTER middleware
         @app.route("/health")
         async def health_check(request):
             return JSONResponse({
@@ -130,6 +143,14 @@ def main():
 
         logger.info(f"Starting HTTP server on port {port}")
 
+        # Log the app routes for debugging
+        logger.info("App routes configured:")
+        if hasattr(app, 'routes'):
+            for route in app.routes:
+                logger.info(f"  - {route.methods} {route.path}")
+
+        logger.info(f"Starting HTTP server on port {port}")
+
         # Run the server with configured settings
         uvicorn.run(
             app,
@@ -138,7 +159,28 @@ def main():
             log_level="info",
             access_log=True,
             timeout_keep_alive=65,
-            timeout_graceful_shutdown=30
+            timeout_graceful_shutdown=30,
+            # Add these for debugging
+            log_config={
+                "version": 1,
+                "disable_existing_loggers": False,
+                "formatters": {
+                    "default": {
+                        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                    },
+                },
+                "handlers": {
+                    "default": {
+                        "formatter": "default",
+                        "class": "logging.StreamHandler",
+                        "stream": "ext://sys.stdout",
+                    },
+                },
+                "root": {
+                    "level": "INFO",
+                    "handlers": ["default"],
+                },
+            }
         )
 
     except Exception as e:
