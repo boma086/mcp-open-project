@@ -1,0 +1,21 @@
+# Core dependencies
+fastmcp>=2.7.0
+httpx>=0.27.0
+pydantic>=2.8.0
+pydantic-settings>=2.0.0
+
+# HTTP Server support (Smithery requirement)
+uvicorn>=0.24.0
+starlette>=0.27.0
+
+# Optional dependencies for performance and reliability
+tenacity>=9.0.0
+structlog>=24.1.0
+
+# YAML parsing for OpenAPI spec
+PyYAML>=6.0
+
+# Development dependencies (install with pip install -r requirements-dev.txt)
+# pytest>=8.0.0
+# pytest-asyncio>=0.23.0
+# python-dotenv>=1.0.0
