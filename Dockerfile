@@ -1,34 +1,44 @@
 # Dockerfile for OpenProject MCP Server
-# Based on Smithery.ai official recommendations
+# Optimized for Smithery.ai cloud builds
 
-# Use a Python image with uv pre-installed
-FROM ghcr.io/astral-sh/uv:python3.12-alpine
+# Use standard Python image for better cloud compatibility
+FROM python:3.12-slim
 
-# Install the project into `/app`
+# Set working directory
 WORKDIR /app
 
-# Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE=1
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy from the cache instead of linking since it's a mounted volume
-ENV UV_LINK_MODE=copy
-
-# Install the project's dependencies
+# Copy requirements first for better Docker layer caching
 COPY requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system -r requirements.txt
 
-# Then, add the rest of the project source code
-COPY . /app
+# Upgrade pip and install dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Place executables in the environment at the front of the path
-ENV PATH="/root/.local/bin:$PATH"
+# Copy application code
+COPY openproject/ ./openproject/
+COPY spec.yml .
 
-# Reset the entrypoint, don't invoke `uv`
-ENTRYPOINT []
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash app && \
+    chown -R app:app /app
+USER app
 
-# Set default port (Smithery will override this to 8081)
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 ENV PORT=8081
 
-# Run the application directly using Python
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get(f'http://localhost:{os.getenv(\"PORT\", 8081)}/health', timeout=5)" || exit 1
+
+# Expose port
+EXPOSE 8081
+
+# Run the application
 CMD ["python", "-m", "openproject.server"]
