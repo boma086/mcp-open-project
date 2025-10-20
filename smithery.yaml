@@ -13,6 +13,8 @@ startCommand:
 configSchema:
   type: "object"
   required:
+    - "openprojectBaseUrl"
+    - "openprojectApiKey"
     - "openprojectTimeout"
   properties:
     openprojectBaseUrl:
@@ -29,6 +31,7 @@ configSchema:
       type: "integer"
       title: "Timeout (seconds)"
       description: "API 请求超时时间 (用户可配置)"
+      default: 30
       minimum: 5
       maximum: 300
 
@@ -37,3 +40,15 @@ exampleConfig:
   openprojectBaseUrl: "http://localhost:8090"
   openprojectApiKey: "your-api-key-here"
   openprojectTimeout: 30
+
+# 环境变量映射函数 - 关键部分！
+commandFunction: |
+  (config) => ({
+    command: 'python',
+    args: ['-m', 'openproject.server'],
+    env: {
+      OPENPROJECT_BASE_URL: config.openprojectBaseUrl,
+      OPENPROJECT_API_KEY: config.openprojectApiKey,
+      OPENPROJECT_TIMEOUT: (config.openprojectTimeout || 30).toString()
+    }
+  })
