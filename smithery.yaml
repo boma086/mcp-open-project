@@ -1,54 +1,29 @@
-name: openproject-mcp-server
-version: 0.0.1
-description: "OpenProject MCP server - Deploy on Smithery.ai as remote service"
-
-# Smithery.ai Container Runtime 配置
-runtime: "container"
-
-# MCP 服务器启动配置 - HTTP 远程访问
+version: 1
+build:
+  dockerfile: Dockerfile
 startCommand:
-  type: "http"
-
-# 配置模式定义 - Smithery.ai 平台提供配置界面
-configSchema:
-  type: "object"
-  required:
-    - "openprojectBaseUrl"
-    - "openprojectApiKey"
-    - "openprojectTimeout"
-  properties:
-    openprojectBaseUrl:
-      type: "string"
-      title: "OpenProject Base URL"
-      description: "OpenProject 实例的基础 URL (暂时使用默认值)"
-      default: "http://14.103.141.123:8080"
-    openprojectApiKey:
-      type: "string"
-      title: "OpenProject API Key"
-      description: "OpenProject API 认证令牌 (暂时使用默认值)"
-      default: "539750190b72e7fa4bbdea73ae4a5e467ddeb2dda3963b40ed96a06a6814c273"
-    openprojectTimeout:
-      type: "integer"
-      title: "Timeout (seconds)"
-      description: "API 请求超时时间 (用户可配置)"
-      default: 30
-      minimum: 5
-      maximum: 300
-
-# 配置示例
-exampleConfig:
-  openprojectBaseUrl: "http://localhost:8090"
-  openprojectApiKey: "your-api-key-here"
-  openprojectTimeout: 30
-
-# 环境变量映射函数 - 关键部分！
-commandFunction: |
-  (config) => ({
-    command: 'python',
-    args: ['-m', 'openproject.server'],
-    env: {
-      OPENPROJECT_BASE_URL: config.openprojectBaseUrl,
-      OPENPROJECT_API_KEY: config.openprojectApiKey,
-      OPENPROJECT_TIMEOUT: (config.openprojectTimeout || 30).toString()
-    }
-  })
+  type: http
+  configSchema:
+    type: object
+    required:
+      - OPENPROJECT_BASE_URL
+      - OPENPROJECT_API_KEY
+      - OPENPROJECT_TIMEOUT
+    properties:
+      OPENPROJECT_BASE_URL:
+        type: string
+        title: "OpenProject Base URL"
+        description: "The base URL of your OpenProject instance"
+      OPENPROJECT_API_KEY:
+        type: string
+        title: "OpenProject API Key"
+        description: "Your OpenProject API key"
+      OPENPROJECT_TIMEOUT:
+        type: string
+        title: "Timeout (seconds)"
+        description: "API request timeout"
+        default: "30"
+  exampleConfig:
+    OPENPROJECT_BASE_URL: "http://localhost:8090"
+    OPENPROJECT_API_KEY: "your-api-key"
+    OPENPROJECT_TIMEOUT: "30"
