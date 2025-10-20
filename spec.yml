@@ -20295,7 +20295,7 @@ components:
                 type: array
                 description: Embedded list of members.
                 items:
-                - "$ref": "#/components/schemas/UserModel"
+                  "$ref": "#/components/schemas/UserModel"
           _links:
             type: object
             properties:

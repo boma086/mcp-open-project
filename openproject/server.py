@@ -81,17 +81,196 @@ async def create_mcp_server():
                 client=client,
                 name="OpenProject MCP Server"
             )
-        except ImportError as e:
-            logger.warning(f"New parser not available: {e}")
-            logger.warning("Falling back to basic MCP server")
+        except (ImportError, Exception) as e:
+            logger.warning(f"OpenAPI parser failed: {e}")
+            logger.warning("Falling back to manual OpenProject API tools")
 
-            # Fallback to basic server
+            # Fallback to manual OpenProject tools
             mcp_server = FastMCP(name="OpenProject MCP Server")
 
+            # Add basic status tool
             @mcp_server.tool()
             def get_status() -> str:
                 """Get the current status of the OpenProject MCP server"""
-                return "OpenProject MCP Server is running (basic mode due to OpenAPI validation errors)"
+                return "OpenProject MCP Server is running with manual API tools (enhanced fallback mode)"
+
+            # Add project management tools for weekly reports
+            @mcp_server.tool()
+            async def get_projects() -> str:
+                """Get all projects from OpenProject"""
+                try:
+                    response = await client.get("/api/v3/projects")
+                    response.raise_for_status()
+                    return f"Projects retrieved successfully: {response.json()}"
+                except Exception as e:
+                    return f"Error retrieving projects: {str(e)}"
+
+            @mcp_server.tool()
+            async def get_project_work_packages(project_id: str, status_filter: str = "open") -> str:
+                """Get work packages for a specific project with status filtering
+
+                Args:
+                    project_id: The ID of the project
+                    status_filter: Status filter - 'open' for open work packages, 'all' for all
+                """
+                try:
+                    # Build filters based on status
+                    if status_filter == "open":
+                        filters = '[{ "status": { "operator": "o", "values": [] } }]'
+                    else:
+                        filters = '[]'
+
+                    params = {"filters": filters}
+                    response = await client.get(f"/api/v3/projects/{project_id}/work_packages", params=params)
+                    response.raise_for_status()
+                    data = response.json()
+
+                    # Extract key information for reporting
+                    total_count = data.get("total", 0)
+                    work_packages = data.get("_embedded", {}).get("elements", [])
+
+                    result = {
+                        "project_id": project_id,
+                        "total_work_packages": total_count,
+                        "status_filter": status_filter,
+                        "work_packages": [
+                            {
+                                "id": wp.get("id"),
+                                "subject": wp.get("subject"),
+                                "status": wp.get("_embedded", {}).get("status", {}).get("name"),
+                                "assignee": wp.get("_embedded", {}).get("assignee", {}).get("name"),
+                                "dueDate": wp.get("dueDate"),
+                                "percentageDone": wp.get("percentageDone")
+                            } for wp in work_packages[:10]  # Limit to first 10 for readability
+                        ]
+                    }
+
+                    return f"Project work packages: {result}"
+
+                except Exception as e:
+                    return f"Error retrieving project work packages: {str(e)}"
+
+            @mcp_server.tool()
+            async def get_overdue_work_packages(days_ahead: int = 7) -> str:
+                """Get work packages that are due within specified days
+
+                Args:
+                    days_ahead: Number of days ahead to check for due work packages
+                """
+                try:
+                    # Filter for work packages due in the next N days
+                    filters = f'[{{ "dueDate": {{ "operator": "<t+", "values": ["{days_ahead}"] }} }}]'
+                    params = {"filters": filters}
+
+                    response = await client.get("/api/v3/work_packages", params=params)
+                    response.raise_for_status()
+                    data = response.json()
+
+                    total_count = data.get("total", 0)
+                    work_packages = data.get("_embedded", {}).get("elements", [])
+
+                    result = {
+                        "days_ahead": days_ahead,
+                        "total_overdue": total_count,
+                        "urgent_work_packages": [
+                            {
+                                "id": wp.get("id"),
+                                "subject": wp.get("subject"),
+                                "project": wp.get("_embedded", {}).get("project", {}).get("name"),
+                                "status": wp.get("_embedded", {}).get("status", {}).get("name"),
+                                "assignee": wp.get("_embedded", {}).get("assignee", {}).get("name"),
+                                "dueDate": wp.get("dueDate"),
+                                "percentageDone": wp.get("percentageDone")
+                            } for wp in work_packages[:15]  # Limit to first 15 most urgent
+                        ]
+                    }
+
+                    return f"Overdue/Urgent work packages: {result}"
+
+                except Exception as e:
+                    return f"Error retrieving overdue work packages: {str(e)}"
+
+            @mcp_server.tool()
+            async def get_user_info(user_id: str) -> str:
+                """Get detailed information about a specific user
+
+                Args:
+                    user_id: The ID of the user
+                """
+                try:
+                    response = await client.get(f"/api/v3/users/{user_id}")
+                    response.raise_for_status()
+                    return f"User information: {response.json()}"
+                except Exception as e:
+                    return f"Error retrieving user info: {str(e)}"
+
+            @mcp_server.tool()
+            async def generate_weekly_report(project_ids: list = None) -> str:
+                """Generate a comprehensive weekly report for specified projects or all projects
+
+                Args:
+                    project_ids: Optional list of project IDs. If empty, reports on all projects.
+                """
+                try:
+                    report = {
+                        "report_type": "weekly_project_summary",
+                        "generated_at": "2025-10-20",
+                        "projects_summary": []
+                    }
+
+                    # Get projects if not specified
+                    if not project_ids:
+                        projects_response = await client.get("/api/v3/projects")
+                        projects_data = projects_response.json()
+                        project_ids = [str(p.get("id")) for p in projects_data.get("_embedded", {}).get("elements", [])]
+
+                    # Analyze each project
+                    for project_id in project_ids[:5]:  # Limit to 5 projects for performance
+                        # Get project info
+                        project_response = await client.get(f"/api/v3/projects/{project_id}")
+                        project_data = project_response.json()
+
+                        # Get work packages (open and closed)
+                        open_wp_response = await client.get(
+                            f"/api/v3/projects/{project_id}/work_packages",
+                            params={"filters": '[{ "status": { "operator": "o", "values": [] } }]'}
+                        )
+                        open_wp_data = open_wp_response.json()
+
+                        # Get overdue work packages
+                        overdue_response = await client.get(
+                            f"/api/v3/projects/{project_id}/work_packages",
+                            params={"filters": '[{ "dueDate": { "operator": "<t+", "values": ["7"] } }]'}
+                        )
+                        overdue_data = overdue_response.json()
+
+                        project_summary = {
+                            "project_id": project_id,
+                            "project_name": project_data.get("name"),
+                            "total_open_work_packages": open_wp_data.get("total", 0),
+                            "urgent_work_packages": overdue_data.get("total", 0),
+                            "completion_percentage": _calculate_project_completion(open_wp_data)
+                        }
+
+                        report["projects_summary"].append(project_summary)
+
+                    return f"Weekly report generated: {report}"
+
+                except Exception as e:
+                    return f"Error generating weekly report: {str(e)}"
+
+            # Helper function for project completion calculation
+            def _calculate_project_completion(work_packages_data):
+                """Calculate approximate project completion based on work packages"""
+                try:
+                    work_packages = work_packages_data.get("_embedded", {}).get("elements", [])
+                    if not work_packages:
+                        return 0
+
+                    total_percentage = sum(wp.get("percentageDone", 0) for wp in work_packages)
+                    return round(total_percentage / len(work_packages), 1)
+                except:
+                    return 0
 
         logger.info("FastMCP server with OpenProject tools created successfully")
         return mcp_server
