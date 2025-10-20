@@ -188,3 +188,7 @@ node_modules/
 # Temporary files
 *.tmp
 *.temp
+
+# OpenAPI Specification Management
+# Keep spec/ directory local for version management and testing
+spec/
