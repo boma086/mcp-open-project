@@ -1,5 +1,7 @@
 # MCP OpenProject Server
 
+[![smithery badge](https://smithery.ai/badge/@boma086/mcp-open-project)](https://smithery.ai/server/mcp-open-project-ai)
+
 基于 FastMCP 框架的 OpenProject MCP 服务器，为 AI 助手提供完整的项目管理功能。
 
 ## 🚀 快速部署
