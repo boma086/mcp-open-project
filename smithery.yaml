@@ -8,7 +8,6 @@ startCommand:
     required:
       - OPENPROJECT_BASE_URL
       - OPENPROJECT_API_KEY
-      - OPENPROJECT_TIMEOUT
     properties:
       OPENPROJECT_BASE_URL:
         type: string
@@ -21,7 +20,7 @@ startCommand:
       OPENPROJECT_TIMEOUT:
         type: string
         title: "Timeout (seconds)"
-        description: "API request timeout"
+        description: "API request timeout (optional)"
         default: "30"
   exampleConfig:
     OPENPROJECT_BASE_URL: "http://localhost:8090"
