@@ -88,13 +88,7 @@ async def create_mcp_server():
             # Fallback to manual OpenProject tools
             mcp_server = FastMCP(name="OpenProject MCP Server")
 
-            # Add basic status tool
-            @mcp_server.tool()
-            def get_status() -> str:
-                """Get the current status of the OpenProject MCP server"""
-                return "OpenProject MCP Server is running with manual API tools (enhanced fallback mode)"
-
-            # Add project management tools for weekly reports
+            # Add OpenProject API tools
             @mcp_server.tool()
             async def get_projects() -> str:
                 """Get all projects from OpenProject"""
@@ -204,74 +198,7 @@ async def create_mcp_server():
                 except Exception as e:
                     return f"Error retrieving user info: {str(e)}"
 
-            @mcp_server.tool()
-            async def generate_weekly_report(project_ids: list = None) -> str:
-                """Generate a comprehensive weekly report for specified projects or all projects
-
-                Args:
-                    project_ids: Optional list of project IDs. If empty, reports on all projects.
-                """
-                try:
-                    report = {
-                        "report_type": "weekly_project_summary",
-                        "generated_at": "2025-10-20",
-                        "projects_summary": []
-                    }
-
-                    # Get projects if not specified
-                    if not project_ids:
-                        projects_response = await client.get("/api/v3/projects")
-                        projects_data = projects_response.json()
-                        project_ids = [str(p.get("id")) for p in projects_data.get("_embedded", {}).get("elements", [])]
-
-                    # Analyze each project
-                    for project_id in project_ids[:5]:  # Limit to 5 projects for performance
-                        # Get project info
-                        project_response = await client.get(f"/api/v3/projects/{project_id}")
-                        project_data = project_response.json()
-
-                        # Get work packages (open and closed)
-                        open_wp_response = await client.get(
-                            f"/api/v3/projects/{project_id}/work_packages",
-                            params={"filters": '[{ "status": { "operator": "o", "values": [] } }]'}
-                        )
-                        open_wp_data = open_wp_response.json()
-
-                        # Get overdue work packages
-                        overdue_response = await client.get(
-                            f"/api/v3/projects/{project_id}/work_packages",
-                            params={"filters": '[{ "dueDate": { "operator": "<t+", "values": ["7"] } }]'}
-                        )
-                        overdue_data = overdue_response.json()
-
-                        project_summary = {
-                            "project_id": project_id,
-                            "project_name": project_data.get("name"),
-                            "total_open_work_packages": open_wp_data.get("total", 0),
-                            "urgent_work_packages": overdue_data.get("total", 0),
-                            "completion_percentage": _calculate_project_completion(open_wp_data)
-                        }
-
-                        report["projects_summary"].append(project_summary)
-
-                    return f"Weekly report generated: {report}"
-
-                except Exception as e:
-                    return f"Error generating weekly report: {str(e)}"
-
-            # Helper function for project completion calculation
-            def _calculate_project_completion(work_packages_data):
-                """Calculate approximate project completion based on work packages"""
-                try:
-                    work_packages = work_packages_data.get("_embedded", {}).get("elements", [])
-                    if not work_packages:
-                        return 0
-
-                    total_percentage = sum(wp.get("percentageDone", 0) for wp in work_packages)
-                    return round(total_percentage / len(work_packages), 1)
-                except:
-                    return 0
-
+  
         logger.info("FastMCP server with OpenProject tools created successfully")
         return mcp_server
 
