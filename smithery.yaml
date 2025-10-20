@@ -29,7 +29,6 @@ configSchema:
       type: "integer"
       title: "Timeout (seconds)"
       description: "API 请求超时时间 (用户可配置)"
-      default: 30
       minimum: 5
       maximum: 300
 
