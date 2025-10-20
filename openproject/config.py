@@ -15,6 +15,19 @@ class OpenProjectSettings(BaseSettings):
     api_key: str = "539750190b72e7fa4bbdea73ae4a5e467ddeb2dda3963b40ed96a06a6814c273"
     timeout: int = 30
 
+    class Config:
+        env_prefix = "OPENPROJECT_"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # 记录配置来源，便于调试
+        import os
+        timeout_env = os.getenv("OPENPROJECT_TIMEOUT")
+        if timeout_env:
+            logger.info(f"✅ Timeout loaded from environment: {timeout_env}s")
+        else:
+            logger.info(f"ℹ️  Using default timeout: {self.timeout}s")
+
     @validator('base_url')
     def validate_base_url(cls, v):
         if not v.startswith(('http://', 'https://')):

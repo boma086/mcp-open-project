@@ -13,24 +13,25 @@ startCommand:
 configSchema:
   type: "object"
   required:
-    - "openprojectBaseUrl"
-    - "openprojectApiKey"
+    - "openprojectTimeout"
   properties:
     openprojectBaseUrl:
       type: "string"
       title: "OpenProject Base URL"
-      description: "OpenProject 实例的基础 URL"
+      description: "OpenProject 实例的基础 URL (暂时使用默认值)"
       default: "http://14.103.141.123:8080"
     openprojectApiKey:
       type: "string"
       title: "OpenProject API Key"
-      description: "OpenProject API 认证令牌"
+      description: "OpenProject API 认证令牌 (暂时使用默认值)"
       default: "539750190b72e7fa4bbdea73ae4a5e467ddeb2dda3963b40ed96a06a6814c273"
     openprojectTimeout:
       type: "integer"
       title: "Timeout (seconds)"
-      description: "API 请求超时时间"
+      description: "API 请求超时时间 (用户可配置)"
       default: 30
+      minimum: 5
+      maximum: 300
 
 # 配置示例
 exampleConfig:
